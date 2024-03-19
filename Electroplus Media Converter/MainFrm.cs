@@ -26,6 +26,8 @@ namespace Electroplus_Media_Converter
 
             comboBox_PortName.SelectedIndex = 0;
             comboBox_Type.SelectedIndex = 0;
+            comboBox_Baudrate.SelectedIndex = 0;
+            comboBox_setting.SelectedIndex = 0;
         }
 
         private void comboBox_PortName_MouseClick(object sender, MouseEventArgs e)
@@ -43,19 +45,45 @@ namespace Electroplus_Media_Converter
         {
             try
             {
+                ClientsList.Clear();
+                if (serialPort1.IsOpen)
+                {
+                    serialPort1.Close();
+                }
+
                 serialPort1.PortName = comboBox_PortName.Text;
-                serialPort1.BaudRate = 9600;
-                serialPort1.DataBits = 8;
-                serialPort1.Parity = Parity.None;
+
+                serialPort1.BaudRate = Convert.ToInt32(comboBox_Baudrate.Text);
+                if (comboBox_setting.Text == "8N1")
+                {
+                    serialPort1.DataBits = 8;
+                    serialPort1.Parity = Parity.None;
+                    serialPort1.StopBits = StopBits.One;
+                }
+                else if (comboBox_setting.Text == "7E1")
+                {
+                    serialPort1.DataBits = 7;
+                    serialPort1.Parity = Parity.Even;
+                    serialPort1.StopBits = StopBits.One;
+                }
+
                 serialPort1.Open();
 
-                if (comboBox_Type.Text == "Server")
+                if (comboBox_Type.Text == "TCP Server")
                 {
                     net = new GXNet(NetworkType.Tcp, decimal.ToInt32(numericUpDown_Port.Value));
                 }
-                else
+                else if (comboBox_Type.Text == "TCP Client")
                 {
                     net = new GXNet(NetworkType.Tcp, textBox_IP.Text, decimal.ToInt32(numericUpDown_Port.Value));
+                }
+                else if (comboBox_Type.Text == "UDP Server")
+                {
+                    net = new GXNet(NetworkType.Udp, decimal.ToInt32(numericUpDown_Port.Value));
+                }
+                else if (comboBox_Type.Text == "UDP Client")
+                {
+                    net = new GXNet(NetworkType.Udp, textBox_IP.Text, decimal.ToInt32(numericUpDown_Port.Value));
                 }
 
                 net.OnClientConnected += new ClientConnectedEventHandler(Net1_OnClientConnected);
@@ -81,6 +109,9 @@ namespace Electroplus_Media_Converter
                 }
                 else
                 {
+                    if (ClientsList.Contains(e.SenderInfo) == false)
+                        ClientsList.Add(e.SenderInfo);
+
                     serialPort1.Write((byte[])e.Data, 0, ((byte[])e.Data).Length);
 
 
@@ -98,22 +129,26 @@ namespace Electroplus_Media_Converter
 
         private void serialPort1_DataReceived(object sender, SerialDataReceivedEventArgs e)
         {
-            Thread.Sleep(150);
-            //var serialData = serialPort1.ReadExisting();
-            //byte[] bytesToSend = Encoding.ASCII.GetBytes(serialData);
-            SerialPort sp = (SerialPort)sender;
-            byte[] buffer = new byte[sp.BytesToRead];
-
-            sp.Read(buffer, 0, buffer.Length);
-            foreach (var item in ClientsList)
+            try
             {
-                net.Send(buffer, item);
+                Thread.Sleep(150);
+                SerialPort sp = (SerialPort)sender;
+                byte[] buffer = new byte[sp.BytesToRead];
 
-                richTextBox_log.Invoke(new System.Action(() => richTextBox_log.SelectionColor = Color.Red));
-                richTextBox_log.Invoke(new System.Action(() => richTextBox_log.AppendText("Net TX :  " + (BitConverter.ToString(buffer).Replace("-", "")) + "\r\r")));
+                sp.Read(buffer, 0, buffer.Length);
+                foreach (var item in ClientsList)
+                {
+                    net.Send(buffer, item);
+
+                    richTextBox_log.Invoke(new System.Action(() => richTextBox_log.SelectionColor = Color.Red));
+                    richTextBox_log.Invoke(new System.Action(() => richTextBox_log.AppendText("Net TX :  " + (BitConverter.ToString(buffer).Replace("-", "")) + "\r\r")));
+
+                }
+            }
+            catch (Exception ex)
+            {
 
             }
-
         }
 
         /// <summary>
@@ -160,6 +195,27 @@ namespace Electroplus_Media_Converter
         private void richTextBox_log_TextChanged(object sender, EventArgs e)
         {
             richTextBox_log.Focus();
+        }
+
+        private void button_stop_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                if (net != null)
+                {
+                    net.Close();
+                }
+
+                if (serialPort1 != null && serialPort1.IsOpen)
+                {
+                    serialPort1.Close();
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+
         }
     }
 }
